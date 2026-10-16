@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Picture Gallery</title>
+<style>
+:root{--bg:#0b1220;--panel:#131f33;--panel2:#1b2a42;--text:#f3f6fc;--muted:#a9b7cc;--accent:#78aaff;--line:#2a3a55}
+*{box-sizing:border-box}
+body{margin:0;background:radial-gradient(ellipse at top,#172945 0,#0b1220 55%);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Arial,sans-serif;min-height:100vh}
+header{text-align:center;padding:42px 18px 22px}
+header h1{margin:0 0 8px;font-size:clamp(2rem,5vw,3rem);letter-spacing:-.04em}
+header p{margin:0;color:var(--muted)}
+main{max-width:1050px;margin:auto;padding:18px}
+.toolbar{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin:8px 0 24px}
+button,.file-label{border:1px solid var(--line);background:var(--panel2);color:var(--text);padding:10px 15px;border-radius:10px;cursor:pointer;font:inherit}
+button.primary{background:var(--accent);border-color:var(--accent);color:#071326;font-weight:700}
+button:hover,.file-label:hover{filter:brightness(1.12)}
+.gallery{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}
+.card{background:rgba(19,31,51,.88);border:1px solid var(--line);border-radius:17px;padding:12px;overflow:hidden;min-width:0}
+.image-button{display:block;width:100%;padding:0;border:0;background:#0a1020;border-radius:11px;overflow:hidden}
+.image-button img{display:block;width:100%;height:250px;object-fit:cover}
+.name{display:none;font-size:1.15rem;font-weight:700;color:var(--accent);padding:14px 8px 5px;overflow-wrap:anywhere}
+.card.revealed .name{display:block}
+.card-bottom{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:10px 3px 0;color:var(--muted);font-size:.88rem}
+.edit-panel{margin:28px 0 12px;padding:20px;background:rgba(19,31,51,.88);border:1px solid var(--line);border-radius:17px}
+.edit-panel h2{margin:0 0 6px}
+.hint{color:var(--muted);font-size:.94rem;line-height:1.5}
+.slots{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin-top:16px}
+.slot{background:#0d1728;border:1px solid var(--line);padding:14px;border-radius:12px;min-width:0}
+.slot label{display:block;font-size:.9rem;color:var(--muted);margin:10px 0 5px}
+.slot input[type=text]{width:100%;padding:10px;border-radius:8px;border:1px solid var(--line);background:#111d30;color:var(--text);font:inherit}
+.slot input[type=file]{width:100%;font-size:.85rem;color:var(--muted)}
+.slot .small{font-size:.8rem;color:var(--muted);margin-top:7px}
+footer{text-align:center;color:var(--muted);padding:26px 16px 36px;font-size:.85rem}
+.hidden{display:none!important}
+@media(max-width:600px){.gallery,.slots{grid-template-columns:1fr}.image-button img{height:230px}header{padding-top:30px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>sajad</h1>
+  <p>Tap a picture to reveal its name.</p>
+</header>
+<main>
+  <div class="toolbar">
+    <button class="primary" id="editToggle">Edit pictures & names</button>
+    <button id="hideNames">Hide all names</button>
+    <button id="exportBtn">Export backup</button>
+    <label class="file-label" for="importFile">Import backup</label>
+    <input class="hidden" id="importFile" type="file" accept="application/json">
+  </div>
+
+  <section class="gallery" id="gallery" aria-label="Picture gallery"></section>
+
+  <section class="edit-panel hidden" id="editor">
+    <h2>Customize your gallery</h2>
+    <p class="hint">Choose up to four images from your device and type their names. Changes save automatically in this browser. You don't need an account, and the page will not keep asking you to edit it.</p>
+    <div class="slots" id="slots"></div>
+    <p class="hint">Tip: To share your gallery with the same pictures and names, click <b>Export backup</b> and import that backup on another device. For a public website and QR code, first publish the page online; see the included README.</p>
+    <button id="doneBtn" class="primary">Done</button>
+  </section>
+</main>
+<footer>Made for your own pictures · Your gallery edits are stored in this browser.</footer>
+<script>
+const MAX=4;
+const STORAGE_KEY='my-picture-gallery-v1';
+const gallery=document.getElementById('gallery');
+const slots=document.getElementById('slots');
+const editor=document.getElementById('editor');
+let items=Array.from({length:MAX},()=>({name:'',image:''}));
+let revealed=new Set();
+
+function load(){
+  try {
+    const saved=JSON.parse(localStorage.getItem(STORAGE_KEY)||'null');
+    if(Array.isArray(saved)) items=Array.from({length:MAX},(_,i)=>saved[i]||{name:'',image:''});
+  } catch(e) {}
+}
+function save(){
+  try { localStorage.setItem(STORAGE_KEY,JSON.stringify(items)); }
+  catch(e) { alert('Your images may be too large for browser storage. Try smaller images, or use Export backup to keep a copy.'); }
+}
+function renderGallery(){
+  gallery.innerHTML='';
+  items.forEach((item,i)=>{
+    const card=document.createElement('article');
+    card.className='card'+(revealed.has(i)?' revealed':'');
+    const button=document.createElement('button');
+    button.className='image-button';
+    button.type='button';
+    button.setAttribute('aria-label','Reveal picture name');
+    if(item.image){
+      const img=document.createElement('img'); img.src=item.image; img.alt=item.name||'Gallery picture'; button.appendChild(img);
+    }else{
+      const placeholder=document.createElement('div');
+      placeholder.style.cssText='height:250px;display:grid;place-items:center;color:#a9b7cc;padding:20px;text-align:center';
+      placeholder.textContent='Picture '+(i+1)+' — add an image in Edit pictures & names';
+      button.appendChild(placeholder);
+    }
+    button.addEventListener('click',()=>{ if(revealed.has(i))revealed.delete(i);else revealed.add(i);renderGallery(); });
+    const name=document.createElement('div');name.className='name';name.textContent=item.name||'Add a name in the editor';
+    const bottom=document.createElement('div');bottom.className='card-bottom';
+    const label=document.createElement('span');label.textContent='Picture '+(i+1);
+    const status=document.createElement('span');status.textContent=revealed.has(i)?'Name shown':'Click to reveal';
+    bottom.append(label,status);card.append(button,name,bottom);gallery.appendChild(card);
+  });
+}
+function renderEditor(){
+  slots.innerHTML='';
+  items.forEach((item,i)=>{
+    const slot=document.createElement('div');slot.className='slot';
+    const title=document.createElement('strong');title.textContent='Picture '+(i+1);
+    const nameLabel=document.createElement('label');nameLabel.textContent='Picture name';
+    const nameInput=document.createElement('input');nameInput.type='text';nameInput.maxLength=120;nameInput.placeholder='Type a name';nameInput.value=item.name;
+    nameInput.addEventListener('input',()=>{items[i].name=nameInput.value;save();renderGallery();});
+    const imgLabel=document.createElement('label');imgLabel.textContent='Choose image';
+    const fileInput=document.createElement('input');fileInput.type='file';fileInput.accept='image/*';
+    const small=document.createElement('div');small.className='small';small.textContent=item.image?'Image selected. Choose another to replace it.':'No image selected yet.';
+    fileInput.addEventListener('change',()=>{
+      const file=fileInput.files&&fileInput.files[0];if(!file)return;
+      if(!file.type.startsWith('image/')){alert('Please choose an image file.');return;}
+      if(file.size>3*1024*1024){alert('Please choose an image smaller than 3 MB for smoother saving and backup.');fileInput.value='';return;}
+      const reader=new FileReader();
+      reader.onload=()=>{items[i].image=reader.result;save();small.textContent='Image selected: '+file.name;renderGallery();};
+      reader.readAsDataURL(file);
+    });
+    const clear=document.createElement('button');clear.type='button';clear.textContent='Clear this slot';clear.style.marginTop='12px';
+    clear.addEventListener('click',()=>{items[i]={name:'',image:''};revealed.delete(i);save();renderEditor();renderGallery();});
+    slot.append(title,nameLabel,nameInput,imgLabel,fileInput,small,clear);slots.appendChild(slot);
+  });
+}
+document.getElementById('editToggle').addEventListener('click',()=>{editor.classList.toggle('hidden');if(!editor.classList.contains('hidden'))renderEditor();});
+document.getElementById('doneBtn').addEventListener('click',()=>{editor.classList.add('hidden');renderGallery();});
+document.getElementById('hideNames').addEventListener('click',()=>{revealed.clear();renderGallery();});
+document.getElementById('exportBtn').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(items)],{type:'application/json'});
+  const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='my-gallery-backup.json';a.click();URL.revokeObjectURL(url);
+});
+document.getElementById('importFile').addEventListener('change',e=>{
+  const file=e.target.files&&e.target.files[0];if(!file)return;
+  const reader=new FileReader();reader.onload=()=>{
+    try{const data=JSON.parse(reader.result);if(!Array.isArray(data))throw Error();items=Array.from({length:MAX},(_,i)=>data[i]||{name:'',image:''});save();revealed.clear();renderEditor();renderGallery();alert('Backup imported!');}
+    catch(err){alert('That backup file could not be read.');}
+  };reader.readAsText(file);e.target.value='';
+});
+load();renderGallery();
+</script>
+</body>
+</html>
